@@ -1,0 +1,25 @@
+module.exports = (srv)=> {
+    
+    const {Books, Orders} = cds.entities;
+
+    srv.after('READ', 'Books', (each)=>{
+        if(each.stock > 111) each.title += ' -- 11% discount!';
+    })
+
+    srv.before('CREATE', 'Orders', async (req) =>{
+        const tx = cds.transaction(req), order = req.data;
+
+        if(order.Items){
+            const affectedRow = await tx.run(order.Items.map(item =>
+                UPDATE(Books)
+                    .where({ID:item.book_ID})
+                    .and(`stock >=`, item.amount)
+                    .set(`stock -=`, item.amount)
+                )
+            );
+
+            if(affectedRow.some(row => !row)) req.error(409, 'Sold out, sorry');
+        }
+    })
+
+}
